@@ -1,0 +1,87 @@
+// Copyright (c) 2022 - for information on the respective copyright owner see the NOTICE file or the repository <https://github.com/boschglobal/VDA-SiL-Standard>.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+
+// Interface Description for VDA SiLVI Interface - Network Model - Ethernet
+//
+// Network Model Ethernet - NMEN - NMEN (flatbuffers file identifier)
+//
+// MIME type: application/vda.silvi.ethernet.flatbuffers.1
+
+namespace NetworkModels.Ethernet;
+
+// Ethernet Bus Model
+// ====================
+
+enum BusSync:byte { NoSync = 0, Sync = 1}
+
+table EthernetStatus {
+    sync:BusSync;
+}
+
+// Used for timestamps and simulation time.
+// psec10 is the number of tens of picoseconds since the beginning of the simulation
+// 1e-11 precision is required to get precise message timing for 10Gbit Ethernet and even faster buses
+struct TimeSpec {
+    psec10:long = 0;      //number of tens of picoseconds (resolution 1e-11 second)
+}
+
+// Set of time stamps describing the entire timing of the message
+struct MessageTiming {
+    send_request:TimeSpec;      // time stamp of send request (virtual time)
+    arbitration:TimeSpec;       // time stamp of message arbitration (virtual time)
+    reception:TimeSpec;         // time stamp of message reception (virtual time)
+}
+
+// Direction (of an Eth Buffer), None is disabled.
+enum BufferDirection:byte { Tx = 0, Rx = 1 }
+
+// Status of an Ethernet Buffer.
+enum BufferStatus:byte { None = 0, RxError = 1 }
+
+// Ethernet Frame
+// Original Ethernet frames without IEEE 802.3q VLAN extension are NOT supported!
+table Frame {
+    dest_mac:[ubyte];           // Destination MAC address, 6 bytes (byte array)
+    src_mac:[ubyte];            // Source MAC address, 6 bytes (byte array)
+    vlan_tag:uint;              // VLAN tag, 4 bytes, Little Endian 
+                                // TPID: 16 bits:31...16 (0x8100 for IEEE 802.3q Ethernet with VLAN extension)
+                                // PCP: 3 bits:  15...13
+                                // DEI: 1 bit:   12
+                                // VID: 12 bits: 11...0
+                                // The entire VLAN tag could look as follows: 0x81000003 for VLAN ID=3, PCP=0 and DEI=0  
+    type:ushort;                // EtherType, 2 bytes, Little Endian: e.g. 0x0800 for IPv4 (LE 1st byte: 0x00, 2nd byte: 0x80)
+    data:[ubyte];               // Payload, 42 - 1500 bytes
+                                // The number 42 is determined by 64 - 14 (original header) - 4 (VLAN tag) - 4 (CRC)
+                                // The sender is allowed to send less than 42 bytes payload - in that case 
+                                // the interface implementation must automatically add padding bytes to meet the requirement about
+                                // 64 bytes minimum frame length
+                                // On the receiver side the payload size must not be less than 42 bytes
+    length:ushort;              // Original length of the payload in bytes (Little Endian) - if the sender sent 5 bytes payload then
+                                // the receiver should see the value 5 here even though the payload buffer would be 42 bytes long
+}
+
+// Frame + meta information from/to interface
+table MetaFrame {
+    status:BufferStatus = None;
+    direction:BufferDirection = Tx;   // Tx, Rx
+    frame:Frame;                // Ethernet Frame
+    timing:MessageTiming (required);    // timing of the message
+}
+
+// Ethernet Register File
+// The register file is expected to operate in FIFO mode
+// Main entity to communicate with e. g. SiLVI API
+// IMPORTANT NOTE:
+// You must finish the register file using FinishSizePrefixed(..., "NMEN")
+// Correspondingly call GetzSizePrefixedRegisterFile() in order to get the flatbuffer size
+// ======================
+
+table RegisterFile {
+    buffer:[MetaFrame];         // Buffer of MetaFrames
+}
+
+root_type RegisterFile;
+file_identifier "NMEN";
+file_extension "ethernet";

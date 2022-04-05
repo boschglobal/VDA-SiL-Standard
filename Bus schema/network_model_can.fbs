@@ -1,0 +1,104 @@
+// Copyright (c) 2022 - for information on the respective copyright owner see the NOTICE file or the repository <https://github.com/boschglobal/VDA-SiL-Standard>.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+
+// Interface Description for VDA SiLVI Interface - Network Model - CAN
+//
+// Network Model Can - NMC - NMCA (flatbuffers file identifier)
+//
+// MIME type: application/vda.silvi.can.flatbuffers.1
+
+namespace NetworkModels.CAN;
+
+// CAN Bus Model
+// ================
+
+// Bus Status.
+enum BusState:byte { BusOff = 0, Idle = 1, Sync = 2 }
+
+table CanStatus {
+    sync:BusState = Idle;
+}
+
+// CAN Bus Model
+// ================
+
+// Used for timestamps and simulation time.
+// psec10 is the number of tens of picoseconds since the beginning of the simulation
+// 1e-11 precision is required to get precise message timing for 10Gbit Ethernet and even faster buses
+struct TimeSpec {
+    psec10:long = 0;      //number of tens of picoseconds (resolution 1e-11 second)
+}
+
+// Set of time stamps describing the entire timing of the message (filled in RX)
+struct MessageTiming {
+    send_request:TimeSpec;      // time stamp of send request (virtual time)
+    arbitration:TimeSpec;       // time stamp of message arbitration (virtual time)
+    reception:TimeSpec;         // time stamp of message reception (virtual time)
+}
+
+// Direction (of a CAN Buffer)
+enum BufferDirection:byte { Tx = 0, Rx = 1 }
+
+// Status of a CAN Buffer.
+enum BufferStatus:byte { None = 0, RxError = 1 }
+
+// The virtual bus implementation is expected to do the CRC calculation and checking as well as
+// the insertion and removal of stuffing bits
+
+enum FrameType:byte{
+    standard_frame=0,
+    extended_frame=1
+}
+
+
+// Link Protocol Data Unit.
+table Frame {
+    frame_id:uint = 0;      // CAN Message ID
+    payload:[ubyte];        // Payload of the CAN frame, covered by DLC. Can be longer than the
+                            // payload length specified by DLC, but must not be shorter
+    length:ubyte = 0;       // Length of payload content (not the size of the payload vector)
+                            // posssible values as defined by CAN DLC spec: 0...8,12,16,20,24,32,48,64.
+    rtr:bool = 0;                       // Remote Frame request.
+    type:FrameType = standard_frame;     // StandardFrame, ExtendedFrame
+}
+
+// The CRC calculation happens internally on lower layers and shall not be performed/checked by the application
+
+//Indicates whether or not the frame is a CAN FD frame with longer payload of up to 64 bytes
+enum CanFDIndicator:byte{
+    can=0,
+    canFD=1
+}
+
+// Frame + meta information from/to interface
+table MetaFrame {
+    status:BufferStatus = None;         // None, RxError
+    direction:BufferDirection = Tx;     // Tx, Rx
+    canFD_enabled:CanFDIndicator;       // CanFD enabled or not 
+
+    frame:Frame;                        // CAN Frame.
+
+    timing:MessageTiming (required);    // timing of the message
+}
+//For RTR frames set the RTR bit and no payload bytes (empty buffer)
+//If buffer not empty but RTR set then buffer will be ignored (not sent)
+
+
+// CAN Register File
+// The register file is expected to operate in FIFO mode
+// Main entity to communicate with e. g. SiLVI API
+// IMPORTANT NOTE:
+// You must finish the register file using FinishSizePrefixed(..., "NMCA")
+// Correspondingly call GetzSizePrefixedRegisterFile() in order to get the flatbuffer size
+// ======================
+table RegisterFile {
+    buffer:[MetaFrame];                 // Buffer of MetaFrames
+}
+
+//LPDU = raw frame - something that contains information which would also be on the wire
+//Buffer = LPDU extended by additional information from/to controller
+root_type RegisterFile;
+file_identifier "NMCA";
+file_extension "can";
