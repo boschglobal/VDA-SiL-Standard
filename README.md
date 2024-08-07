@@ -9,13 +9,13 @@
 
 ## Introduction
 
-This repository contains the interfaces and bus schema files of the VDA SiLVI.
-
-The schemas for CAN and Ethernet are an extension of the schemas at https://github.com/boschglobal/automotive-bus-schema for VDA SiLVI usage. 
-
-The Bus schemas in the Google FlatBuffers IDL describe automotive network communications within a virtualized simulation environment.
+This repository contains the interfaces and bus schema files of the VDA SiLVI standard.
 
 Currently buffer representations of CAN, CAN-XL, Ethernet, Flexray and LIN are provided.
+
+The schemas for CAN and Ethernet are an extension of the schemas at https://github.com/boschglobal/automotive-bus-schema for VDA SiLVI usage.
+
+The Bus schemas in the Google FlatBuffers IDL describe automotive network communications within a virtualized simulation environment.
 
 ## Dependencies
 
