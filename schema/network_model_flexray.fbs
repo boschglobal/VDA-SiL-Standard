@@ -1,0 +1,107 @@
+/******************************************************************
+* FILE:            network_model_flexray.fbs
+* VERSION:         3.0.0
+* DATE:            02.08.2023
+* DESCRIPTION:     Schemation File for Flexray
+* COPYRIGHT:       © 2023 Robert Bosch GmbH
+*
+*The reproduction, distribution and utilization of this file as
+*well as the communication of its contents to others without express
+*authorization is prohibited. Offenders will be held liable for the
+*payment of damages. All rights reserved in the event of the grant
+*of a patent, utility model or design.
+*
+******************************************************************/
+
+// Interface Description for VDA SiLVI - Network Model - FlexRay
+//
+// Network Model FlexRay - NMF - NMFR (flatbuffers file identifier)
+//
+// Author: Robert Bosch GmbH
+// Final proposal version: 08.11.2022
+// MIME type: application/vda.silvi.flexray.flatbuffers.2
+
+namespace NetworkModels.FlexRay;
+
+// FlexRay Bus Model
+// ====================
+
+enum BusSync:byte { NoSync = 0, Sync = 1}
+
+table FlexrayStatus {
+    sync:BusSync = NoSync;
+}
+
+// Used for timestamps and simulation time.
+// psec10 is the number of tens of picoseconds since the beginning of the simulation
+// 1e-11 precision is required to get precise message timing for 10Gbit Ethernet and even faster buses
+struct TimeSpec {
+    psec10:long = 0;      //number of tens of picoseconds (resolution 1e-11 second)
+}
+
+// Set of time stamps describing the entire timing of the message.
+// Those time stamps shall be provided by the bus simulation when messages are received.
+// When sending messages there is no need to fill in any time stamps - they can be set to 0.
+struct MessageTiming {
+    send_request:TimeSpec;      // time stamp of send request (virtual time)
+    arbitration:TimeSpec;       // time stamp of message arbitration (virtual time)
+    reception:TimeSpec;         // time stamp of message reception (virtual time)
+}
+
+// FlexRay Bus Model
+// ================
+
+// Direction (of an Eth Buffer), None is disabled.
+enum BufferDirection:byte { Tx = 0, Rx = 1 }
+
+// Status of an FlexRay Buffer.
+enum BufferStatus:byte { None = 0, RxError = 1 }
+
+// Channel information
+// Frames to be sent can be ChA, ChB or Both
+// Frames received can be ChA or ChB but NOT Both!
+// Reason: if the sender says Both then the receiver will receive two copies of the frame, the first with ChA and the second with ChB
+enum FrameChannel:byte { None = 0, ChA = 1, ChB = 2, Both = 3 }
+
+// Indicator bits of the frame: reserved, payload, notNull, Sync, startup
+enum FrameIndicatorBits:byte { Reserved = 16, Payload = 8, NotNull = 4, Sync = 2, Startup = 1 }
+
+// FlexRay Frame
+table Frame {
+    frame_id:ushort = 1;        // frame ID, must be 1 or higher
+    indicators:ubyte = 12;      // combination of frame indicator bits described above
+    length:ubyte = 1;           // length of data payload in 16 bit words (!), must be 0-127
+    cycle:ubyte = 0;            // FlexRay cycle number 0...63, repeats every 64 cycles
+                                // Should be set by the interface for received frames and ignored when sending frames
+    data:[ubyte];               // payload, 0 to 254 bytes, 2 * 'length' bytes must fit here
+}
+
+// Frame + meta information from/to interface
+table MetaFrame {
+    status:BufferStatus = None;
+    direction:BufferDirection = Tx;     // Tx, Rx
+    channel_mask:ubyte = 1;             // channel information
+    cycle_period:ubyte = 1;             // AKA cycle_repetition, can be 1,2,4,8,16,32 or 64,
+                                        // other numbers are not allowed
+    cycle_offset:ubyte = 0;             // can be 0 to cycle_period-1 and is added to the period
+                                        // Example: cycle_period=4 and cycle_offset=3 lead to sending
+                                        // the following FR in cycles: 3, 7, 11, 15,...
+    frame:Frame;                        // The frame itself
+    timing:MessageTiming (required);    // Timing of the message
+}
+
+// FlexRay Register File
+// The register file is expected to operate in FIFO mode
+// Main entity to communicate with e. g. SiLVI API
+// IMPORTANT NOTE:
+// You must finish the register file using FinishSizePrefixed(..., "NMF2")
+// Correspondingly call GetSizePrefixedRegisterFile() in order to get the flatbuffer size
+// =====================
+
+table RegisterFile {
+    buffer:[MetaFrame];                 // Buffer of MetaFrames
+}
+
+root_type RegisterFile;
+file_identifier "NMF2";
+file_extension "flexray";

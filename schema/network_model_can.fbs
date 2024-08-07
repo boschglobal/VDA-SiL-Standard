@@ -1,15 +1,28 @@
-// Copyright (c) 2022 - for information on the respective copyright owner see the NOTICE file or the repository <https://github.com/boschglobal/VDA-SiL-Standard>.
-//
-// SPDX-License-Identifier: Apache-2.0
+/******************************************************************
+* FILE:            network_model_can.fbs
+* VERSION:         3.0.0
+* DATE:            02.08.2023
+* DESCRIPTION:     Schemation File for CAN
+* COPYRIGHT:       © 2023 Robert Bosch GmbH
+*
+*The reproduction, distribution and utilization of this file as
+*well as the communication of its contents to others without express
+*authorization is prohibited. Offenders will be held liable for the
+*payment of damages. All rights reserved in the event of the grant
+*of a patent, utility model or design.
+*
+******************************************************************/
 
 
 // Interface Description for VDA SiLVI Interface - Network Model - CAN
 //
 // Network Model Can - NMC - NMCA (flatbuffers file identifier)
 //
-// MIME type: application/vda.silvi.can.flatbuffers.1
+// Author: Robert Bosch GmbH
+// Final proposal version: 08.11.2022
+// MIME type: application/vda.silvi.can.flatbuffers.2
 
-namespace NetworkModels.CAN;
+namespace NetworkModels.CAN.V2;
 
 // CAN Bus Model
 // ================
@@ -32,6 +45,8 @@ struct TimeSpec {
 }
 
 // Set of time stamps describing the entire timing of the message (filled in RX)
+// Those time stamps shall be provided by the bus simulation when messages are received. 
+// When sending messages there is no need to fill in any time stamps - they can be set to 0.
 struct MessageTiming {
     send_request:TimeSpec;      // time stamp of send request (virtual time)
     arbitration:TimeSpec;       // time stamp of message arbitration (virtual time)
@@ -67,9 +82,15 @@ table Frame {
 // The CRC calculation happens internally on lower layers and shall not be performed/checked by the application
 
 //Indicates whether or not the frame is a CAN FD frame with longer payload of up to 64 bytes
-enum CanFDIndicator:byte{
-    can=0,
-    canFD=1
+enum CanFDIndicator:byte {
+    can=0,                  //don't use the FD extended payload, only 8 payload bytes are possible
+    canFD=1                 //use extended payload of up to 64 bytes
+}
+
+//Indicates whether or not the frame is a CAN FD frame with longer payload of up to 64 bytes
+enum FastDataIndicator:byte {
+    ArbitrationBitRate=0,   //transfer the payload with the slow arbitration bit rate 
+    FastBitRate=1           //transfer the payload with the fast FD bit rate
 }
 
 // Frame + meta information from/to interface
@@ -77,21 +98,22 @@ table MetaFrame {
     status:BufferStatus = None;         // None, RxError
     direction:BufferDirection = Tx;     // Tx, Rx
     canFD_enabled:CanFDIndicator;       // CanFD enabled or not 
+    canFD_fast_data:FastDataIndicator = ArbitrationBitRate;  // Fast data (bit rate switch) enabled or not 
 
-    frame:Frame;                        // CAN Frame.
+    frame:Frame;                        // CAN Frame
 
     timing:MessageTiming (required);    // timing of the message
 }
-//For RTR frames set the RTR bit and no payload bytes (empty buffer)
-//If buffer not empty but RTR set then buffer will be ignored (not sent)
 
+//For RTR frames set the RTR bit and no payload bytes (empty buffer)
+//If the buffer is not empty but the RTR bit is set then buffer must be ignored (not sent)
 
 // CAN Register File
 // The register file is expected to operate in FIFO mode
 // Main entity to communicate with e. g. SiLVI API
 // IMPORTANT NOTE:
-// You must finish the register file using FinishSizePrefixed(..., "NMCA")
-// Correspondingly call GetzSizePrefixedRegisterFile() in order to get the flatbuffer size
+// You must finish the register file using FinishSizePrefixed(..., "NMC2")
+// Correspondingly call GetSizePrefixedRegisterFile() in order to get the flatbuffer size
 // ======================
 table RegisterFile {
     buffer:[MetaFrame];                 // Buffer of MetaFrames
@@ -100,5 +122,5 @@ table RegisterFile {
 //LPDU = raw frame - something that contains information which would also be on the wire
 //Buffer = LPDU extended by additional information from/to controller
 root_type RegisterFile;
-file_identifier "NMCA";
+file_identifier "NMC2";
 file_extension "can";

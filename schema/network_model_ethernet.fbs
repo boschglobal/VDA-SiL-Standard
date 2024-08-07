@@ -1,13 +1,27 @@
-// Copyright (c) 2022 - for information on the respective copyright owner see the NOTICE file or the repository <https://github.com/boschglobal/VDA-SiL-Standard>.
-//
-// SPDX-License-Identifier: Apache-2.0
+/******************************************************************
+* FILE:            network_model_ethernet.fbs
+* VERSION:         3.0.0
+* DATE:            02.08.2023
+* DESCRIPTION:     Schemation File for Ethernet
+* COPYRIGHT:       © 2023 Robert Bosch GmbH
+*
+*The reproduction, distribution and utilization of this file as
+*well as the communication of its contents to others without express
+*authorization is prohibited. Offenders will be held liable for the
+*payment of damages. All rights reserved in the event of the grant
+*of a patent, utility model or design.
+*
+******************************************************************/
+
 
 
 // Interface Description for VDA SiLVI Interface - Network Model - Ethernet
 //
 // Network Model Ethernet - NMEN - NMEN (flatbuffers file identifier)
 //
-// MIME type: application/vda.silvi.ethernet.flatbuffers.1
+// Author: Robert Bosch GmbH
+// Final proposal version: 08.11.2022
+// MIME type: application/vda.silvi.ethernet.flatbuffers.2
 
 namespace NetworkModels.Ethernet;
 
@@ -28,6 +42,8 @@ struct TimeSpec {
 }
 
 // Set of time stamps describing the entire timing of the message
+// Those time stamps shall be provided by the bus simulation when messages are received.
+// When sending messages there is no need to fill in any time stamps - they can be set to 0.
 struct MessageTiming {
     send_request:TimeSpec;      // time stamp of send request (virtual time)
     arbitration:TimeSpec;       // time stamp of message arbitration (virtual time)
@@ -40,26 +56,32 @@ enum BufferDirection:byte { Tx = 0, Rx = 1 }
 // Status of an Ethernet Buffer.
 enum BufferStatus:byte { None = 0, RxError = 1 }
 
+//Ethernet extensions, IEEE 802.3q for VLAN tags
+enum EthernetExtension:byte { Standard = 0, IEEE802_3q = 1 }
+
 // Ethernet Frame
 // Original Ethernet frames without IEEE 802.3q VLAN extension are NOT supported!
 table Frame {
     dest_mac:[ubyte];           // Destination MAC address, 6 bytes (byte array)
     src_mac:[ubyte];            // Source MAC address, 6 bytes (byte array)
-    vlan_tag:uint;              // VLAN tag, 4 bytes, Little Endian 
+    eth_ext:EthernetExtension;  // set to IEEE802_3q if vlan_tag below is to be used, set to Standard otherwise
+                                // in that case vlan_tag below must be ignored
+    vlan_tag:uint;              // VLAN tag, 4 bytes, Little Endian
                                 // TPID: 16 bits:31...16 (0x8100 for IEEE 802.3q Ethernet with VLAN extension)
                                 // PCP: 3 bits:  15...13
                                 // DEI: 1 bit:   12
                                 // VID: 12 bits: 11...0
-                                // The entire VLAN tag could look as follows: 0x81000003 for VLAN ID=3, PCP=0 and DEI=0  
+                                // The entire VLAN tag could look as follows: 0x81000003 for VLAN ID=3, PCP=0 and DEI=0
     type:ushort;                // EtherType, 2 bytes, Little Endian: e.g. 0x0800 for IPv4 (LE 1st byte: 0x00, 2nd byte: 0x80)
     data:[ubyte];               // Payload, 42 - 1500 bytes
                                 // The number 42 is determined by 64 - 14 (original header) - 4 (VLAN tag) - 4 (CRC)
-                                // The sender is allowed to send less than 42 bytes payload - in that case 
+                                // The sender is allowed to send less than 42 bytes payload - in that case
                                 // the interface implementation must automatically add padding bytes to meet the requirement about
                                 // 64 bytes minimum frame length
                                 // On the receiver side the payload size must not be less than 42 bytes
     length:ushort;              // Original length of the payload in bytes (Little Endian) - if the sender sent 5 bytes payload then
                                 // the receiver should see the value 5 here even though the payload buffer would be 42 bytes long
+    crc:uint;                   // CRC of the frame, to be computed by the bus simulation only for received frames
 }
 
 // Frame + meta information from/to interface
@@ -74,14 +96,14 @@ table MetaFrame {
 // The register file is expected to operate in FIFO mode
 // Main entity to communicate with e. g. SiLVI API
 // IMPORTANT NOTE:
-// You must finish the register file using FinishSizePrefixed(..., "NMEN")
-// Correspondingly call GetzSizePrefixedRegisterFile() in order to get the flatbuffer size
+// You must finish the register file using FinishSizePrefixed(..., "NME2")
+// Correspondingly call GetSizePrefixedRegisterFile() in order to get the flatbuffer size
 // ======================
 
 table RegisterFile {
-    buffer:[MetaFrame];         // Buffer of MetaFrames
+    buffer:[MetaFrame];                 // Buffer of MetaFrames
 }
 
 root_type RegisterFile;
-file_identifier "NMEN";
+file_identifier "NME2";
 file_extension "ethernet";
