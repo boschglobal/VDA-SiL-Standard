@@ -1,0 +1,102 @@
+/******************************************************************
+* FILE:            network_model_lin.fbs
+* VERSION:         3.0.0
+* DATE:            02.08.2023
+* DESCRIPTION:     Schemation File for LIN
+* COPYRIGHT:       © 2023 VDA SiLVI Workgroup
+*
+*The reproduction, distribution and utilization of this file as
+*well as the communication of its contents to others without express
+*authorization is prohibited. Offenders will be held liable for the
+*payment of damages. All rights reserved in the event of the grant
+*of a patent, utility model or design.
+*
+******************************************************************/
+
+
+// Interface Description for VDA SiLVI Interface - Network Model - LIN
+//
+// Network Model LIN - NMC - NMLI (flatbuffers file identifier)
+//
+// Author: VDA SiLVI Workgroup
+// Final proposal version: 08.11.2022
+// MIME type: application/vda.silvi.lin.flatbuffers.2
+
+namespace NetworkModels.LIN;
+
+// LIN Bus Model
+// ================
+
+// Bus Status.
+enum BusState:byte { BusOff = 0, Idle = 1, Sync = 2 }
+
+table LinStatus {
+    sync:BusState = Idle;
+}
+
+// LIN Bus Model
+// ================
+
+// Used for timestamps and simulation time.
+// psec10 is the number of tens of picoseconds since the beginning of the simulation
+// 1e-11 precision is required to get precise message timing for 10Gbit Ethernet and even faster buses
+struct TimeSpec {
+    psec10:long = 0;      //number of tens of picoseconds (resolution 1e-11 second)
+}
+
+// Set of time stamps describing the entire timing of the message (filled in RX)
+// When sending a message there is no need to fill in any time stamps
+// If the message is a master message then only master_send and master_reception must be valid
+// If the message is a slave message then all time stamps must be valid
+struct MessageTiming {
+    master_send:TimeSpec;       // time stamp of begin of sending the master part (virtual time)
+    master_reception:TimeSpec;  // time stamp of end of sending the master part (virtual time)
+    slave_send:TimeSpec;        // time stamp of begin of sending the slave part (virtual time)
+    slave_reception:TimeSpec;   // time stamp of end of sending the slave part (virtual time)
+}
+
+// Direction (of a LIN Buffer)
+enum BufferDirection:byte { Tx = 0, Rx = 1 }
+
+// Status of a LIN Buffer.
+enum BufferStatus:byte { None = 0, RxError = 1 }
+
+// LIN frame
+// comprises both parts, the master and the slave part
+table Frame {
+    id:ubyte = 0;           // LIN message ID, possible values 0...63 (6 bits), no parity bits included here
+    length:ubyte = 0;       // Length of payload content, 0...8 bytes (not the size of the payload vector)
+    payload:[ubyte];        // Payload of the LIN frame
+}
+
+// The CRC calculation happens internally on lower layers and shall not be performed/checked by the application
+
+enum FrameFlags:ubyte { None = 0, Slave = 1, Master = 2, Conflict = 3, SelfReception = 128 }
+
+// Frame + meta information from/to interface
+table MetaFrame {
+    status:BufferStatus = None;         // None, RxError
+    direction:BufferDirection = Tx;     // Tx, Rx
+    flags:FrameFlags;                   // Flags indicating properties of the frame
+
+    frame:Frame;                        // LIN Frame.
+
+    timing:MessageTiming (required);    // timing of the message
+}
+
+// LIN Register File
+// The register file is expected to operate in FIFO mode
+// Main entity to communicate with e. g. SiLVI API
+// IMPORTANT NOTE:
+// You must finish the register file using FinishSizePrefixed(..., "NML2")
+// Correspondingly call GetSizePrefixedRegisterFile() in order to get the flatbuffer size
+// ======================
+table RegisterFile {
+    buffer:[MetaFrame];                 // Buffer of MetaFrames
+}
+
+//LPDU = raw frame - something that contains information which would also be on the wire
+//Buffer = LPDU extended by additional information from/to controller
+root_type RegisterFile;
+file_identifier "NML2";
+file_extension "lin";
