@@ -1,15 +1,11 @@
 /******************************************************************
 * FILE:            network_model_can.fbs
-* VERSION:         3.0.0
-* DATE:            02.08.2023
+* VERSION:         3.0.1
+* DATE:            22.01.2025
 * DESCRIPTION:     Schemation File for CAN
 * COPYRIGHT:       © 2023 Robert Bosch GmbH
 *
-*The reproduction, distribution and utilization of this file as
-*well as the communication of its contents to others without express
-*authorization is prohibited. Offenders will be held liable for the
-*payment of damages. All rights reserved in the event of the grant
-*of a patent, utility model or design.
+* SPDX-License-Identifier: Apache-2.0
 *
 ******************************************************************/
 
@@ -19,7 +15,6 @@
 // Network Model Can - NMC - NMCA (flatbuffers file identifier)
 //
 // Author: Robert Bosch GmbH
-// Final proposal version: 08.11.2022
 // MIME type: application/vda.silvi.can.flatbuffers.2
 
 namespace NetworkModels.CAN.V2;
